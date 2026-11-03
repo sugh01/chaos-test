@@ -171,27 +171,34 @@ func (s *Server) Logs(ctx context.Context, node string, opt chaos.LogOptions) (c
 	return s.d.Runtime.Logs(ctx, n.Container, opt)
 }
 
+// Chaos pauses, unpauses, stops or starts a node's container, or a service's (arcade,
+// merkle-service, ...) when the name is a key of the inventory's services with a container.
 func (s *Server) Chaos(ctx context.Context, node, action string) error {
-	n, err := s.node(node)
-	if err != nil {
+	name, container := node, ""
+	if n, err := s.node(node); err == nil {
+		name, container = n.Name, n.Container
+	} else if svc, ok := s.d.Inventory.Services[node]; ok && svc.Container != "" {
+		container = svc.Container
+	} else {
 		return err
 	}
+	var err error
 	switch action {
 	case "pause":
-		err = s.d.Runtime.Pause(ctx, n.Container)
+		err = s.d.Runtime.Pause(ctx, container)
 	case "unpause":
-		err = s.d.Runtime.Unpause(ctx, n.Container)
+		err = s.d.Runtime.Unpause(ctx, container)
 	case "stop":
-		err = s.d.Runtime.Stop(ctx, n.Container)
+		err = s.d.Runtime.Stop(ctx, container)
 	case "start":
-		err = s.d.Runtime.Start(ctx, n.Container)
+		err = s.d.Runtime.Start(ctx, container)
 	default:
 		return fmt.Errorf("unknown chaos action %q", action)
 	}
 	if err != nil {
 		return err
 	}
-	s.d.Bus.Publish("chaos", n.Name, fmt.Sprintf("%s: %s", n.Name, action), map[string]any{"action": action})
+	s.d.Bus.Publish("chaos", name, fmt.Sprintf("%s: %s", name, action), map[string]any{"action": action})
 	return nil
 }
 

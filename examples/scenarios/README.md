@@ -123,7 +123,7 @@ what you reference later as `${name.field}`. `node:` fields accept a role or a n
 | `rpc_freeze` | `node`, `txid`, `vout` (0), `start`, `stop`, `policyExpires` | `ok`. Teranode: admin freeze RPC. SV node: consensus blacklist. |
 | `rpc_unfreeze` | `node`, `txid`, `vout` (0) | `ok` |
 | `partition` | `nodes` (list or comma string; default all), `plane` (`p2p`/`alert`), `on` (bool) | `nodes`, `plane`, `on`. Healed on run exit. |
-| `chaos` | `node`, `action` (`pause`/`unpause`/`stop`/`start`) | `ok` |
+| `chaos` | `node` (a node, role, or inventory service such as `arcade` / `merkle-service`), `action` (`pause`/`unpause`/`stop`/`start`) | `ok` |
 | `automine` | `enabled` (default true if omitted), `intervalSeconds`, `node`, `blocks` | `enabled`, `intervalSeconds`, `node`, `nextMineAt`, `blocksMined` |
 | `wallet_state` | — | `available`, `connected`, `balance`, `coins`, `address`, `acceptRate`, `decided` |
 | `wallet_topup` | `node`, `satoshis`, `count`, `fee`, `waitSeconds`, `mine` (bool) | `txid`, `address`, `satoshis`, `outputIndex`, `internalized`, `balance`, `coins`, `fanoutTxid` |
