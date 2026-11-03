@@ -23,6 +23,18 @@ func (s *Server) ArcadeBlockStatus(ctx context.Context, hash string) (*arcade.Bl
 	return s.d.ArcadeClient.BlockStatus(ctx, hash)
 }
 
+// ArcadeTx reads arcade's record of a transaction: its status and, once mined, the block and
+// merkle path. Returns arcade.ErrTxNotFound when arcade has never seen it.
+func (s *Server) ArcadeTx(ctx context.Context, txid string) (*arcade.TxRecord, error) {
+	if s.d.ArcadeClient == nil {
+		return nil, errors.New("arcade is not configured in the inventory")
+	}
+	if txid == "" {
+		return nil, errors.New("a txid is required")
+	}
+	return s.d.ArcadeClient.GetTx(ctx, txid)
+}
+
 // ArcadeCanonicalHashAt returns the block arcade's own chaintracks considers canonical at a
 // height.
 func (s *Server) ArcadeCanonicalHashAt(ctx context.Context, height uint32) (string, error) {

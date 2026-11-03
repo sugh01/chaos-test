@@ -167,6 +167,7 @@ interval is ~0.75s. On a non-pass, `should: true` records a finding; otherwise t
 | `log_count` | `node`, `pattern` (regexp) and/or `contains`, `since` (RFC3339, default step start), `min` (default 1) **or** `max` | with `min`: polls until ≥ `min` matching container-log lines. With `max`: waits the window, then ≤ `max`. |
 | `wallet_balance` | `atLeast` and/or `coinsAtLeast` | wallet balance / spendable-coin count meet the floors |
 | `wallet_tx_status` | `txid`, `wallet` (expected), `arcade` (expected) | the tx's wallet status and/or arcade status match (each checked only if given) |
+| `arcade_tx_status` | `txid`, `status` (e.g. `MINED` or `MINED\|IMMUTABLE`), optional `block`, `proof`, `node` | arcade's status for the tx is one of `status`; with `block`, it is mined in that block; with `proof: true`, its `merklePath` proves the txid against the header merkle root `node` (default `A`) has for that block. `ACCEPTED_BY_NETWORK` and other progress statuses keep polling |
 | `arcade_block_status` | `hash`, `status` | arcade's processing status for the block equals `status` |
 | `arcade_canonical` | `height`, `hash` | arcade's chaintracks has `hash` as the active-chain block at `height` |
 | `expr` | `left`, `right`, `op` (`==` default, `!=`, `contains`) | the string comparison holds (one-shot) |

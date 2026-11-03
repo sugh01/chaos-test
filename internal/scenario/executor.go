@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -804,6 +805,61 @@ func (x *executor) check(ctx context.Context, name string, w map[string]any, sin
 			return false, fmt.Sprintf("arcade says %q, want %q", row.ArcadeStatus, want)
 		}
 		return true, fmt.Sprintf("wallet=%s arcade=%s", row.WalletStatus, row.ArcadeStatus)
+
+	case "arcade_tx_status":
+		// What arcade (the broadcaster) reports for a transaction submitted to it directly.
+		// `status` may list alternatives ("MINED|IMMUTABLE"); anything else, including
+		// ACCEPTED_BY_NETWORK, is progress and keeps the check polling. `proof: true` also
+		// requires the merkle path to prove the txid against the header merkle root of the
+		// block arcade names, as read from `node` (default A); `block` pins that block.
+		txid := str(w, "txid")
+		rec, err := x.e.d.API.ArcadeTx(ctx, txid)
+		if err != nil {
+			if errors.Is(err, arcade.ErrTxNotFound) {
+				return false, fmt.Sprintf("arcade has no record of %s", short(txid))
+			}
+			return false, err.Error()
+		}
+		detail := fmt.Sprintf("arcade says %s is %s", short(txid), rec.Status)
+		if rec.BlockHash != "" {
+			detail += fmt.Sprintf(" in %s@%d", short(rec.BlockHash), rec.BlockHeight)
+		}
+		if rec.ExtraInfo != "" {
+			detail += " (" + rec.ExtraInfo + ")"
+		}
+		if want := str(w, "status"); want != "" && !slices.Contains(strings.Split(want, "|"), rec.Status) {
+			return false, detail + fmt.Sprintf(", want %s", want)
+		}
+		if want := str(w, "block"); want != "" && rec.BlockHash != want {
+			return false, detail + fmt.Sprintf(", want block %s", short(want))
+		}
+		if !boolean(w, "proof") {
+			return true, detail
+		}
+		if rec.MerklePath == "" {
+			return false, detail + ", no merklePath yet"
+		}
+		root, height, err := arcade.ProofRoot(rec.MerklePath, txid)
+		if err != nil {
+			return false, detail + ": " + err.Error()
+		}
+		ref := str(w, "node")
+		if ref == "" {
+			ref = "A"
+		}
+		node := x.node(ref)
+		var hdr struct {
+			MerkleRoot string `json:"merkleroot"`
+			Height     uint64 `json:"height"`
+		}
+		if err := f.RPC(node).Call(ctx, "getblockheader", []any{rec.BlockHash, true}, &hdr); err != nil {
+			return false, fmt.Sprintf("%s, %s header: %v", detail, node, err)
+		}
+		if root != hdr.MerkleRoot || uint64(height) != hdr.Height {
+			return false, fmt.Sprintf("%s, merklePath proves root %s at height %d but %s has %s at %d",
+				detail, short(root), height, node, short(hdr.MerkleRoot), hdr.Height)
+		}
+		return true, detail + fmt.Sprintf(", proof matches %s's header root %s", node, short(root))
 
 	case "arcade_block_status":
 		// Arcade's own projection of the reorg stream. Polls, because the status converges
