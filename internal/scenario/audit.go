@@ -3,6 +3,7 @@ package scenario
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bsv-blockchain/chaos-test/internal/audit"
@@ -49,7 +50,8 @@ func (x *executor) auditTxs(w map[string]any) ([]audit.Tx, error) {
 		return nil, err
 	}
 	for _, r := range rows {
-		if r.Target != "" && r.Target != walletsvc.TargetArcade {
+		// An all-zero txid is a send that produced no transaction, not one to audit.
+		if strings.Trim(r.TxID, "0") == "" || (r.Target != "" && r.Target != walletsvc.TargetArcade) {
 			continue
 		}
 		created, err := time.Parse(time.RFC3339, r.CreatedAt)
