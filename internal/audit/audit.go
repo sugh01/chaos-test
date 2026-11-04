@@ -77,8 +77,9 @@ func (r *ChainReport) Summary() string {
 }
 
 // Chain walks each node's chain from its tip back to height from, following previousblockhash
-// (which also proves each chain is linked), and requires every node, and canonical when
-// given, to hold the same block hash and merkle root at every height up to the lowest tip.
+// (which also proves each chain is linked), and requires the nodes that hold a height to hold
+// the same block hash and merkle root there, up to the highest tip; canonical, when given, must
+// agree up to the lowest tip.
 // Stale tips from getchaintips are counted, not treated as divergence: a resolved fork is
 // normal; disagreement about the active chain is not.
 func Chain(ctx context.Context, nodes []Node, from uint32, canonical Canonical) (*ChainReport, error) {
@@ -87,7 +88,7 @@ func Chain(ctx context.Context, nodes []Node, from uint32, canonical Canonical) 
 	}
 	r := &ChainReport{From: from, Tips: map[string]uint32{}}
 	chains := make([]map[uint32]header, len(nodes))
-	to := ^uint32(0)
+	lowest, highest := ^uint32(0), uint32(0)
 	for i, n := range nodes {
 		r.Nodes = append(r.Nodes, n.Name)
 		chain, tip, err := walk(ctx, n, from, r)
@@ -95,33 +96,45 @@ func Chain(ctx context.Context, nodes []Node, from uint32, canonical Canonical) 
 			return nil, err
 		}
 		chains[i], r.Tips[n.Name] = chain, tip
-		to = min(to, tip)
+		lowest, highest = min(lowest, tip), max(highest, tip)
 		if err := forks(ctx, n, r); err != nil {
 			return nil, err
 		}
 	}
-	if to < from {
+	if highest < from {
 		return r, nil
 	}
-	r.To = to
-	for h := from; h <= to; h++ {
-		r.Heights++
-		ref := chains[0][h]
-		for i := 1; i < len(nodes); i++ {
-			got := chains[i][h]
+	r.To = highest
+	// Compare every height among the nodes that hold it: a node that lags is left out of the
+	// heights it has not reached instead of capping the audit, which would hide a divergence
+	// between the others above it. The broadcaster is compared up to the lowest tip only, as
+	// its chaintracks may lag the same way.
+	for h := from; h <= highest; h++ {
+		ref, refNode := header{}, ""
+		for i, n := range nodes {
+			got, ok := chains[i][h]
+			if !ok {
+				continue
+			}
+			if refNode == "" {
+				ref, refNode = got, n.Name
+				continue
+			}
 			if got.Hash != ref.Hash || got.MerkleRoot != ref.MerkleRoot {
 				r.diverge("height %d: %s has %s (root %s), %s has %s (root %s)", h,
-					nodes[0].Name, short(ref.Hash), short(ref.MerkleRoot), nodes[i].Name, short(got.Hash), short(got.MerkleRoot))
+					refNode, short(ref.Hash), short(ref.MerkleRoot), n.Name, short(got.Hash), short(got.MerkleRoot))
 			}
 		}
-		if canonical != nil {
-			c, err := canonical(ctx, h)
-			if err != nil {
-				return nil, fmt.Errorf("canonical hash at %d: %w", h, err)
-			}
-			if c != ref.Hash {
-				r.diverge("height %d: broadcaster has %s, %s has %s", h, short(c), nodes[0].Name, short(ref.Hash))
-			}
+		r.Heights++
+		if canonical == nil || h > lowest {
+			continue
+		}
+		c, err := canonical(ctx, h)
+		if err != nil {
+			return nil, fmt.Errorf("canonical hash at %d: %w", h, err)
+		}
+		if c != ref.Hash {
+			r.diverge("height %d: broadcaster has %s, %s has %s", h, short(c), refNode, short(ref.Hash))
 		}
 	}
 	return r, nil

@@ -92,8 +92,21 @@ func TestChainLowestTipAndStaleForks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.To != 18 || r.Divergences != 0 || r.StaleTips != 1 || r.DeepestFork != 3 {
-		t.Fatalf("want audit to the lowest tip with one stale fork of 3, got %s", r.Summary())
+	if r.To != 20 || r.Divergences != 0 || r.StaleTips != 1 || r.DeepestFork != 3 {
+		t.Fatalf("want audit to the highest tip with one stale fork of 3, got %s", r.Summary())
+	}
+}
+
+// A lagging node must not hide a divergence between the others above its tip (seen on the
+// multinode stack: B one block behind while A and C split at the next height).
+func TestChainLaggingNodeDoesNotHideDivergence(t *testing.T) {
+	nodes := []Node{{"a", newChain(5, 0, "")}, {"b", newChain(4, 0, "")}, {"c", newChain(5, 5, "cccc")}}
+	r, err := Chain(context.Background(), nodes, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Divergences != 1 || !strings.Contains(r.Listed[0], "height 5") {
+		t.Fatalf("want the split at height 5 found despite b at 4, got %s", r.Summary())
 	}
 }
 
