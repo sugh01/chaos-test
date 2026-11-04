@@ -39,7 +39,9 @@ func New(cfg Config) *Service {
 		cfg.Logger = slog.Default()
 	}
 	s := &Service{cfg: cfg, cl: NewClient(cfg.URL), log: cfg.Logger}
-	s.trk = NewTracker(cfg.Arcade, cfg.Bus, 2000)
+	// Large enough to keep every row of a nightly-length send (5 tx/s for 30 minutes is 9000)
+	// for proof_audit; a row is a few hundred bytes.
+	s.trk = NewTracker(cfg.Arcade, cfg.Bus, 20000)
 	return s
 }
 

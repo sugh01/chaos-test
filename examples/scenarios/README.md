@@ -131,6 +131,8 @@ what you reference later as `${name.field}`. `node:` fields accept a role or a n
 | `wallet_send_start` | `tps` (float, default 1), `workers`, `shape`, `satoshis`, `outputs`, `to`, `data`, `label`, `durationSeconds`, `autoMineSeconds`, `mineNode`, `mineBlocks` | `running`, `tps`, `workers`, `labels`, `startedAt` |
 | `wallet_send_stop` | `timeoutSeconds` (default 20) | `running`, `draining`, `attempted`, `succeeded`, `failed`, `backpressure`, `canceled`, `measuredTps`, `elapsedSeconds` |
 | `watch` | `txid`, `vout` (0), `label` | `ok`. Adds the output to the fleet UTXO watch list. |
+| `chain_audit` | `nodes` (default: every inventory node, SV nodes included), `from` (0), `arcade` (bool) | `heights`, `from`, `to`, `tips`, `divergences`, `listed`, `staleTips`, `deepestFork`, `summary`. Walks each node from its tip back to `from` over RPC and compares block hash and merkle root at every height up to the lowest tip; with `arcade: true` also arcade's chaintracks. Stale tips from `getchaintips` are counted, not divergences. Assert on the result, e.g. `expr` `${audit.divergences} == 0`. |
+| `proof_audit` | `txids` and/or `source: wallet` with `since` (RFC3339), `nodes`, `minProven` (1) | `checked`, `proven`, `unproven`, `mismatched`, `listed`, `latencyP50`/`P95`/`Max`, `meetsMin`, `summary`. Each tx must be MINED with a merkle path proving it against the block every node holds at that height. `mismatched` > 0 is an integrity failure; `unproven` is a tx without a proof yet. |
 | `wait_for` | `check`, `with: {...}`, `timeout` | the assertion's detail string. Runs one assertion as a blocking step; the step **fails** if it does not pass. |
 
 Notes on the fiddly ones:

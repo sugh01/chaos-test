@@ -132,6 +132,14 @@ func (s *Server) WalletTx(ctx context.Context, req walletsvc.TxRequest) (*wallet
 	return out, nil
 }
 
+// WalletRows lists every transaction the wallet tracker still holds, newest first.
+func (s *Server) WalletRows() ([]walletsvc.TxRow, error) {
+	if err := s.walletOK(); err != nil {
+		return nil, err
+	}
+	return s.d.Wallet.Tracker().Rows(0), nil
+}
+
 // WalletTxStatus returns wallet truth and network truth for one transaction, freshly fetched.
 func (s *Server) WalletTxStatus(ctx context.Context, txid string) (*walletsvc.TxRow, error) {
 	if err := s.walletOK(); err != nil {

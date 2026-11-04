@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/bsv-regtest/teranode"
 	"github.com/bsv-blockchain/chaos-test/internal/api"
 	"github.com/bsv-blockchain/chaos-test/internal/arcade"
+	"github.com/bsv-blockchain/chaos-test/internal/audit"
 	"github.com/bsv-blockchain/chaos-test/internal/automine"
 	"github.com/bsv-blockchain/chaos-test/internal/chaos"
 	"github.com/bsv-blockchain/chaos-test/internal/walletsvc"
@@ -549,6 +550,40 @@ func (x *executor) action(ctx context.Context, name string, w map[string]any) (a
 			"backpressure": st.Backpressure, "canceled": st.Canceled,
 			"measuredTps": st.MeasuredTPS, "elapsedSeconds": st.ElapsedSec}, nil
 
+	case "chain_audit":
+		// Every node (default: the whole inventory, SV nodes included) must hold the same block
+		// hash and merkle root at every height from `from` to the lowest tip; with
+		// `arcade: true` the broadcaster's chaintracks must agree too. Returns the report and
+		// leaves the verdict to the step's assertions (e.g. ${audit.divergences} == 0), so a
+		// failing audit still records what it found.
+		var canon audit.Canonical
+		if boolean(w, "arcade") {
+			canon = a.ArcadeCanonicalHashAt
+		}
+		r, err := audit.Chain(ctx, x.auditNodes(w), uint32(num(w, "from", 0)), canon)
+		if err != nil {
+			return nil, err
+		}
+		return report(r, r.Summary())
+	case "proof_audit":
+		// Every transaction in `txids`, or with `source: wallet` every one the wallet tracker
+		// holds that was created since `since` (RFC3339, e.g. "${mark.at}"), must be MINED with a
+		// merkle path that holds on every node's block at that height. `meetsMin` reports whether
+		// the proven share reaches `minProven` (default 1).
+		txs, err := x.auditTxs(w)
+		if err != nil {
+			return nil, err
+		}
+		r, err := audit.Proofs(ctx, txs, a.ArcadeTx, x.auditNodes(w))
+		if err != nil {
+			return nil, err
+		}
+		minProven := num2f(w, "minProven", 1)
+		out, err := report(r, r.Summary())
+		if err == nil {
+			out["meetsMin"] = r.Checked > 0 && r.ProvenRatio() >= minProven
+		}
+		return out, err
 	case "watch":
 		x.e.d.Fleet.Watch(str(w, "txid"), uint32(num(w, "vout", 0)), str(w, "label"))
 		return map[string]any{"ok": true}, nil
