@@ -144,10 +144,12 @@ func (c *RPCClient) ReconsiderBlock(ctx context.Context, hash string) error {
 	return c.Call(ctx, "reconsiderblock", []any{hash}, nil)
 }
 
-// Freeze calls the admin freeze RPC. start/stop are optional window heights that newer teranode
-// builds accept; without them the freeze is immediate.
-func (c *RPCClient) Freeze(ctx context.Context, txid string, vout uint32, start, stop *uint64, policyExpires bool) error {
-	params := []any{txid, vout, ""}
+// Freeze calls the admin freeze RPC. utxoHash is the output's UTXO commitment (AssetClient.UTXOHash):
+// teranode requires it, and its Aerospike store refuses a freeze whose hash does not match the
+// output. start/stop are optional window heights that newer teranode builds accept; without them
+// the freeze is immediate.
+func (c *RPCClient) Freeze(ctx context.Context, txid string, vout uint32, utxoHash string, start, stop *uint64, policyExpires bool) error {
+	params := []any{txid, vout, utxoHash}
 	if start != nil || stop != nil {
 		var s, e uint64
 		if start != nil {
@@ -161,7 +163,7 @@ func (c *RPCClient) Freeze(ctx context.Context, txid string, vout uint32, start,
 	return c.Call(ctx, "freeze", params, nil)
 }
 
-// Unfreeze calls the admin unfreeze RPC.
-func (c *RPCClient) Unfreeze(ctx context.Context, txid string, vout uint32) error {
-	return c.Call(ctx, "unfreeze", []any{txid, vout, ""}, nil)
+// Unfreeze calls the admin unfreeze RPC. utxoHash as for Freeze.
+func (c *RPCClient) Unfreeze(ctx context.Context, txid string, vout uint32, utxoHash string) error {
+	return c.Call(ctx, "unfreeze", []any{txid, vout, utxoHash}, nil)
 }

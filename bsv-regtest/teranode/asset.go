@@ -186,6 +186,24 @@ func (c *AssetClient) UTXOs(ctx context.Context, txid string) ([]UTXOOutput, err
 	return out, nil
 }
 
+// UTXOHash returns an output's UTXO commitment, the hash teranode's freeze and unfreeze RPCs
+// take, as the node computes it (sha256 of txid, vout, locking script and satoshis).
+func (c *AssetClient) UTXOHash(ctx context.Context, txid string, vout uint32) (string, error) {
+	outs, err := c.UTXOs(ctx, txid)
+	if err != nil {
+		return "", err
+	}
+	for _, o := range outs {
+		if o.Vout == vout {
+			if o.UTXOHash == "" {
+				return "", fmt.Errorf("utxo %s:%d: the node returned no utxoHash", txid, vout)
+			}
+			return o.UTXOHash, nil
+		}
+	}
+	return "", fmt.Errorf("utxo %s:%d: no such output on this node", txid, vout)
+}
+
 // FSMState returns the node's FSM state name (IDLE, RUNNING, CATCHINGBLOCKS, …).
 func (c *AssetClient) FSMState(ctx context.Context) (string, error) {
 	var st struct {

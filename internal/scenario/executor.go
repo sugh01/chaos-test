@@ -420,8 +420,23 @@ func (x *executor) action(ctx context.Context, name string, w map[string]any) (a
 		return map[string]any{"node": node, "delivered": res.Delivered}, nil
 	case "rpc_freeze", "rpc_unfreeze":
 		node := x.node(str(w, "node"))
+		txid, vout := str(w, "txid"), uint32(num(w, "vout", 0))
+		// A teranode's freeze and unfreeze take the output's UTXO hash; SV nodes freeze by
+		// outpoint alone.
+		var utxoHash string
+		if !x.e.d.Fleet.IsSV(node) {
+			a := x.e.d.Fleet.Asset(node)
+			if a == nil {
+				return nil, fmt.Errorf("%s: no asset API to look up the UTXO hash", node)
+			}
+			h, err := a.UTXOHash(ctx, txid, vout)
+			if err != nil {
+				return nil, err
+			}
+			utxoHash = h
+		}
 		if name == "rpc_unfreeze" {
-			return map[string]any{"ok": true}, x.e.d.Fleet.RPC(node).Unfreeze(ctx, str(w, "txid"), uint32(num(w, "vout", 0)))
+			return map[string]any{"ok": true}, x.e.d.Fleet.RPC(node).Unfreeze(ctx, txid, vout, utxoHash)
 		}
 		var startP, stopP *uint64
 		if _, ok := w["start"]; ok {
@@ -443,7 +458,7 @@ func (x *executor) action(ctx context.Context, name string, w map[string]any) (a
 			}
 			err = sv.AddToConsensusBlacklist(ctx, []alerts.Fund{f})
 		} else {
-			err = x.e.d.Fleet.RPC(node).Freeze(ctx, str(w, "txid"), uint32(num(w, "vout", 0)), startP, stopP, boolean(w, "policyExpires"))
+			err = x.e.d.Fleet.RPC(node).Freeze(ctx, txid, vout, utxoHash, startP, stopP, boolean(w, "policyExpires"))
 		}
 		if err == nil {
 			x.e.d.Fleet.Watch(str(w, "txid"), uint32(num(w, "vout", 0)), "rpc freeze")

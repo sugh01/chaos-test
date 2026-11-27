@@ -597,6 +597,14 @@ func (s *Server) postAlertRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
+	// A teranode's freeze and unfreeze take the output's UTXO hash; SV nodes freeze by outpoint.
+	utxoHash := func() (string, error) {
+		a := s.d.Fleet.Asset(n.Name)
+		if a == nil {
+			return "", fmt.Errorf("%s: no asset API to look up the UTXO hash", n.Name)
+		}
+		return a.UTXOHash(ctx, req.TxID, req.Vout)
+	}
 	switch req.Action {
 	case "freeze":
 		if sv := s.d.Fleet.SV(n.Name); sv != nil {
@@ -609,14 +617,20 @@ func (s *Server) postAlertRPC(w http.ResponseWriter, r *http.Request) {
 			}
 			err = sv.AddToConsensusBlacklist(ctx, []alerts.Fund{f})
 		} else {
-			err = s.d.Fleet.RPC(n.Name).Freeze(ctx, req.TxID, req.Vout, req.Start, req.Stop, req.PolicyExpires)
+			var h string
+			if h, err = utxoHash(); err == nil {
+				err = s.d.Fleet.RPC(n.Name).Freeze(ctx, req.TxID, req.Vout, h, req.Start, req.Stop, req.PolicyExpires)
+			}
 		}
 	case "unfreeze":
 		if s.d.Fleet.IsSV(n.Name) {
 			writeErr(w, 400, errors.New("unfreeze on an SV node is not supported (SV Node has no removeFromConsensusBlacklist; use clearBlacklists)"))
 			return
 		}
-		err = s.d.Fleet.RPC(n.Name).Unfreeze(ctx, req.TxID, req.Vout)
+		var h string
+		if h, err = utxoHash(); err == nil {
+			err = s.d.Fleet.RPC(n.Name).Unfreeze(ctx, req.TxID, req.Vout, h)
+		}
 	default:
 		err = fmt.Errorf("unknown action %q", req.Action)
 	}
